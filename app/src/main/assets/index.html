@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>骑行数据采集</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body { width:100%; height:100%; overflow:hidden; background:#0b1526;
+  font-family:"Microsoft YaHei",sans-serif; color:#dfe8f5; }
+#app { width:360px; transform-origin:0 0; display:flex; flex-direction:column; height:100%; }
+
+/* ---------- 顶栏 ---------- */
+#topbar { height:34px; flex:none; display:flex; align-items:center; padding:0 10px;
+  background:#0e1c33; border-bottom:1px solid #1d3055; }
+#topbar .title { font-size:14px; font-weight:bold; color:#7fb2ff; margin-right:auto; }
+.st { display:flex; align-items:center; margin-left:10px; font-size:11px; }
+.dot { width:8px; height:8px; border-radius:50%; margin-right:4px; background:#e74c3c; }
+.dot.ok { background:#2ecc71; } .dot.warn { background:#f1c40f; }
+#msg { position:fixed; left:50%; top:44px; transform:translateX(-50%);
+  background:#22355c; color:#cfe0ff; font-size:12px; padding:6px 14px; border-radius:16px;
+  display:none; z-index:99; max-width:80%; text-align:center; }
+
+/* ---------- 运动卡 ---------- */
+#sportCard { flex:none; display:flex; align-items:stretch; padding:8px 12px;
+  background:#0e1c33; border-bottom:1px solid #1d3055; }
+#speedBox { flex:none; width:44%; display:flex; align-items:baseline; justify-content:center; }
+#speed { font-size:52px; font-weight:bold; color:#4da3ff; line-height:1.1; }
+#speedBox .unit { font-size:13px; color:#6f87ad; margin-left:4px; }
+#sportRight { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:4px 8px;
+  align-content:center; }
+.kv { display:flex; justify-content:space-between; font-size:12px; }
+.kv .k { color:#6f87ad; } .kv .v { color:#dfe8f5; font-weight:bold; }
+
+/* ---------- 导航信息条 ---------- */
+#navBar { flex:none; height:30px; display:flex; align-items:center; padding:0 10px;
+  background:#122544; border-bottom:1px solid #1d3055; font-size:12px; }
+#navBar .dest { color:#7fb2ff; max-width:45%; overflow:hidden; white-space:nowrap;
+  text-overflow:ellipsis; }
+#navBar .seg { margin-left:auto; color:#f5a623; font-weight:bold; padding-left:10px; }
+
+/* ---------- 地图区 ---------- */
+#mapWrap { flex:1 1 auto; position:relative; background:#0d1830; overflow:hidden; }
+#amapDiv { position:absolute; inset:0; display:none; }
+#cv { position:absolute; inset:0; width:100%; height:100%; }
+#btnSwitchMap { position:absolute; right:8px; top:8px; z-index:10; padding:5px 10px;
+  font-size:12px; color:#cfe0ff; background:rgba(30,52,92,.85); border:1px solid #3a5a96;
+  border-radius:14px; }
+#offlineTip { position:absolute; left:8px; top:8px; z-index:10; font-size:11px;
+  color:#f1c40f; background:rgba(20,32,58,.7); padding:3px 8px; border-radius:10px; display:none; }
+
+/* ---------- 电池卡 ---------- */
+#battCard { flex:none; display:flex; align-items:stretch; padding:8px 12px;
+  background:#0e1c33; border-top:1px solid #1d3055; }
+#socBox { flex:none; width:44%; display:flex; align-items:baseline; justify-content:center; }
+#soc { font-size:52px; font-weight:bold; color:#2ecc71; line-height:1.1; }
+#socBox .unit { font-size:15px; color:#6f87ad; margin-left:4px; }
+#battRight { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:4px 8px; align-content:center; }
+
+/* ---------- 按钮栏 ---------- */
+#btnBar { flex:none; display:flex; padding:6px 8px calc(6px + env(safe-area-inset-bottom));
+  background:#0e1c33; gap:6px; }
+#btnBar button { flex:1; height:40px; font-size:13px; color:#dfe8f5;
+  background:#1a2f52; border:1px solid #2c4a80; border-radius:8px; }
+#btnBar button.warn { color:#ffb84d; }
+#btnBar button.danger { color:#ff6b6b; }
+
+/* ---------- 弹窗 ---------- */
+.mask { position:fixed; inset:0; background:rgba(0,0,0,.6); display:none; z-index:50; }
+.dlg { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); width:86%;
+  max-width:320px; max-height:80%; overflow:auto; background:#101f3a; border:1px solid #2c4a80;
+  border-radius:10px; padding:12px; display:none; z-index:51; }
+.dlg h3 { font-size:14px; color:#7fb2ff; margin-bottom:10px; }
+.dlg input[type=text] { width:100%; height:34px; background:#0b1526; border:1px solid #2c4a80;
+  border-radius:6px; color:#dfe8f5; font-size:13px; padding:0 8px; margin-bottom:8px; }
+.dlg .row { display:flex; gap:6px; margin-bottom:8px; }
+.dlg .row button { flex:1; height:32px; font-size:12px; color:#cfe0ff;
+  background:#1a2f52; border:1px solid #2c4a80; border-radius:6px; }
+.item { padding:8px; border-bottom:1px solid #1d3055; font-size:13px; cursor:pointer; }
+.item .sub { font-size:11px; color:#6f87ad; margin-top:2px; }
+.empty { font-size:12px; color:#6f87ad; text-align:center; padding:10px 0; }
+.dlg .close { width:100%; height:34px; margin-top:10px; font-size:13px; color:#cfe0ff;
+  background:#1a2f52; border:1px solid #2c4a80; border-radius:6px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="topbar">
+    <span class="title">骑行数据采集</span>
+    <span class="st"><span id="dotBle" class="dot"></span><span id="txtBle">蓝牙</span></span>
+    <span class="st"><span id="dotGps" class="dot"></span><span id="txtGps">GPS</span></span>
+  </div>
+
+  <div id="sportCard">
+    <div id="speedBox"><span id="speed">0.0</span><span class="unit">km/h</span></div>
+    <div id="sportRight">
+      <div class="kv"><span class="k">里程</span><span class="v" id="dist">0.00km</span></div>
+      <div class="kv"><span class="k">时长</span><span class="v" id="elapsed">00:00</span></div>
+      <div class="kv"><span class="k">坡度</span><span class="v" id="grade">0%</span></div>
+      <div class="kv"><span class="k">海拔</span><span class="v" id="alt">--m</span></div>
+    </div>
+  </div>
+
+  <div id="navBar">
+    <span class="dest" id="navDest">未设目的地，点【目的地】设置</span>
+    <span class="seg" id="navRemain"></span>
+    <span class="seg" id="navEta"></span>
+  </div>
+
+  <div id="mapWrap">
+    <div id="amapDiv"></div>
+    <canvas id="cv"></canvas>
+    <span id="offlineTip">离线轨迹图（GPS漂移仅参考）</span>
+    <button id="btnSwitchMap">高德地图</button>
+  </div>
+
+  <div id="battCard">
+    <div id="socBox"><span id="soc">--</span><span class="unit">%</span></div>
+    <div id="battRight">
+      <div class="kv"><span class="k">电压</span><span class="v" id="volt">--V</span></div>
+      <div class="kv"><span class="k">电流</span><span class="v" id="curr">--A</span></div>
+      <div class="kv"><span class="k">温度</span><span class="v" id="temp">--℃</span></div>
+      <div class="kv"><span class="k">压差</span><span class="v" id="cdiff">--V</span></div>
+    </div>
+  </div>
+
+  <div id="btnBar">
+    <button id="btnPause">暂停</button>
+    <button id="btnStop" class="danger">停止</button>
+    <button id="btnDest">目的地</button>
+    <button id="btnBle">蓝牙</button>
+    <button id="btnKeep" class="warn">常亮</button>
+  </div>
+</div>
+
+<div id="msg"></div>
+
+<!-- 目的地弹窗 -->
+<div class="mask" id="maskDest"></div>
+<div class="dlg" id="dlgDest">
+  <h3>设置目的地</h3>
+  <input type="text" id="destInput" placeholder="输入目的地关键字，如：人民公园">
+  <div class="row"><button id="btnSearch">搜索</button><button id="btnAmapApp">高德APP导航</button></div>
+  <div id="destList"><div class="empty">输入关键字后点【搜索】</div></div>
+  <button class="close" id="btnCloseDest">关闭</button>
+</div>
+
+<!-- 蓝牙弹窗 -->
+<div class="mask" id="maskBle"></div>
+<div class="dlg" id="dlgBle">
+  <h3>蓝牙连接</h3>
+  <div class="row"><button id="btnScan">搜索设备</button><button id="btnDisBle">断开</button></div>
+  <input type="text" id="macInput" placeholder="或手动输入 MAC：B1:41:00:0B:33:36">
+  <div class="row"><button id="btnMacConn">连接该 MAC</button></div>
+  <div id="bleList"><div class="empty">点【搜索设备】开始扫描</div></div>
+  <button class="close" id="btnCloseBle">关闭</button>
+</div>
+
+<script>
+/* ==================================================================
+ * 骑行数据采集 H5（手机版，纯 ES5）
+ * Java->H5：onDataUpdate / onStatusUpdate / onBleDevices
+ * H5->Java：startRecord stopRecord pauseRecord resumeRecord
+ *           setScreenKeepOn startBleScan stopBleScan connectBle
+ *           disconnectBle openNavigation
+ * ================================================================== */
+
+/* ---------------- 高德 Key 配置：发布前替换为你的 Web端(JS) Key ----------------
+ * 2021-12 之后申请的 Key 还需配置安全密钥 securityJsCode；
+ * 未配置 Key 时自动使用离线自绘轨迹图，不影响 GPS/蓝牙/CSV 功能。 */
+var AMAP_KEY = 'YOUR_AMAP_KEY';
+var AMAP_SECURITY = '';
+
+/* ---------------- 等比缩放适配 ---------------- */
+var DESIGN_W = 360;
+function fitScreen() {
+  var s = window.innerWidth / DESIGN_W;
+  var app = document.getElementById('app');
+  app.style.transform = 'scale(' + s + ')';
+  app.style.height = (window.innerHeight / s) + 'px';
+  drawCanvas();
+}
+window.addEventListener('resize', fitScreen);
+
+function $(id) { return document.getElementById(id); }
+function bridge() { return window.AndroidBridge || null; }
+
+/* ---------------- 提示 ---------------- */
+var msgTimer = null;
+function toast(s) {
+  var el = $('msg');
+  el.textContent = s;
+  el.style.display = 'block';
+  if (msgTimer) clearTimeout(msgTimer);
+  msgTimer = setTimeout(function () { el.style.display = 'none'; }, 3000);
+}
+
+/* ---------------- 状态显示 ---------------- */
+function setDot(dotId, txtId, text, level) {
+  var d = $(dotId);
+  d.className = 'dot' + (level === 'ok' ? ' ok' : level === 'warn' ? ' warn' : '');
+  $(txtId).textContent = text;
+}
+function applyBle(state) {
+  if (state === 'connected') setDot('dotBle', 'txtBle', '蓝牙', 'ok');
+  else if (state === 'connecting' || state === 'scanning') setDot('dotBle', 'txtBle', '蓝牙', 'warn');
+  else setDot('dotBle', 'txtBle', '蓝牙', 'err');
+}
+function applyGps(st) {
+  if (st === 'ok') setDot('dotGps', 'txtGps', 'GPS', 'ok');
+  else if (st === 'weak') setDot('dotGps', 'txtGps', 'GPS', 'warn');
+  else setDot('dotGps', 'txtGps', 'GPS', 'err');
+}
+
+var lastState = { ble: 'disconnected', gps: 'no_fix' };
+
+function onStatusUpdate(json) {
+  try {
+    var o = JSON.parse(json);
+    lastState.ble = o.bleState || lastState.ble;
+    lastState.gps = o.gpsStatus || lastState.gps;
+    applyBle(lastState.ble);
+    applyGps(lastState.gps);
+    if (o.message) toast(o.message);
+  } catch (e) {}
+}
+
+/* ---------------- 数据显示 ---------------- */
+function fmtDur(sec) {
+  sec = Math.max(0, Math.floor(sec || 0));
+  var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+  var mm = (m < 10 ? '0' : '') + m, ss = (s < 10 ? '0' : '') + s;
+  return h > 0 ? h + ':' + mm : mm + ':' + ss;
+}
+function fmtNum(v, digits, suffix) {
+  if (v === null || v === undefined || isNaN(v)) return '--' + suffix;
+  return v.toFixed(digits) + suffix;
+}
+
+var last = { lat: null, lon: null, speed: 0, bearing: 0 };
+
+function onDataUpdate(json) {
+  try {
+    var o = JSON.parse(json);
+    $('speed').textContent = (o.speed || 0).toFixed(1);
+    $('dist').textContent = (o.distance || 0).toFixed(2) + 'km';
+    $('elapsed').textContent = fmtDur(o.elapsed);
+    $('grade').textContent = (o.grade === null || o.grade === undefined ? '--' : o.grade) + '%';
+    $('alt').textContent = fmtNum(o.altitude, 0, 'm');
+    $('volt').textContent = fmtNum(o.voltage, 2, 'V');
+    $('curr').textContent = fmtNum(o.current, 2, 'A');
+    $('soc').textContent = o.soc === null || o.soc === undefined ? '--' : Math.round(o.soc);
+    $('temp').textContent = fmtNum(o.temp, 1, '℃');
+    $('cdiff').textContent = fmtNum(o.cellDiff, 3, 'V');
+
+    if (o.recording !== undefined) {
+      $('btnStop').textContent = o.recording ? '停止' : '开始';
+      $('btnPause').textContent = o.paused ? '继续' : '暂停';
+    }
+    last.speed = o.speed || 0;
+    if (o.bearing !== null && o.bearing !== undefined && !isNaN(o.bearing)) {
+      last.bearing = o.bearing;
+    }
+    if (o.lat !== null && o.lon !== null && o.lat !== undefined && o.lon !== undefined) {
+      last.lat = o.lat; last.lon = o.lon;
+      pushTrackPoint(o.lat, o.lon);
+    }
+    updateOfflineNav();
+    drawCanvas();
+    mapFollow();
+  } catch (e) {}
+}
+
+/* ---------------- Java 推送蓝牙设备列表 ---------------- */
+var bleDevices = {};
+function onBleDevices(json) {
+  try {
+    var o = JSON.parse(json);
+    var arr = o.devices || [];
+    for (var i = 0; i < arr.length; i++) {
+      var d = arr[i];
+      if (!d.mac) continue;
+      if (bleDevices[d.mac] && bleDevices[d.mac].name) {
+        if (d.name) bleDevices[d.mac].name = d.name;
+      } else {
+        bleDevices[d.mac] = { name: d.name || '(未命名)', mac: d.mac, rssi: d.rssi };
+      }
+    }
+    renderBleList();
+  } catch (e) {}
+}
+function renderBleList() {
+  var box = $('bleList'), html = '', keys = [], mac;
+  for (mac in bleDevices) keys.push(mac);
+  keys.sort(function (a, b) { return bleDevices[b].rssi - bleDevices[a].rssi; });
+  for (var i = 0; i < keys.length; i++) {
+    var d = bleDevices[keys[i]];
+    html += '<div class="item" onclick="pickBle(\'' + d.mac + '\')">' + d.name +
+            '<div class="sub">' + d.mac + '　RSSI ' + d.rssi + 'dBm</div></div>';
+  }
+  box.innerHTML = html || '<div class="empty">未发现 LABMS 设备，请靠近保护板</div>';
+}
+function pickBle(mac) {
+  toast('正在连接 ' + mac);
+  closeBle();
+  if (bridge()) bridge().connectBle(mac);
+}
+
+/* ---------------- 蓝牙弹窗 ---------------- */
+function openBle() {
+  $('maskBle').style.display = 'block';
+  $('dlgBle').style.display = 'block';
+  renderBleList();
+}
+function closeBle() {
+  $('maskBle').style.display = 'none';
+  $('dlgBle').style.display = 'none';
+  if (bridge()) bridge().stopBleScan();
+}
+$('btnBle').onclick = openBle;
+$('maskBle').onclick = closeBle;
+$('btnCloseBle').onclick = closeBle;
+$('btnScan').onclick = function () {
+  bleDevices = {};
+  renderBleList();
+  if (bridge()) bridge().startBleScan();
+  toast('正在扫描 LABMS 设备…');
+};
+$('btnDisBle').onclick = function () {
+  if (bridge()) bridge().disconnectBle();
+  toast('已断开蓝牙');
+};
+$('btnMacConn').onclick = function () {
+  var mac = $('macInput').value.trim();
+  if (!/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(mac)) { toast('MAC 格式不正确'); return; }
+  closeBle();
+  if (bridge()) bridge().connectBle(mac);
+};
+
+/* ---------------- 记录控制 ---------------- */
+$('btnPause').onclick = function () {
+  if (!bridge()) return;
+  if ($('btnPause').textContent === '暂停') bridge().pauseRecord();
+  else bridge().resumeRecord();
+};
+$('btnStop').onclick = function () {
+  if (!bridge()) return;
+  if ($('btnStop').textContent === '停止') bridge().stopRecord();
+  else bridge().startRecord();
+};
+var keepOn = false;
+$('btnKeep').onclick = function () {
+  keepOn = !keepOn;
+  $('btnKeep').style.background = keepOn ? '#285a8f' : '#1a2f52';
+  if (bridge()) bridge().setScreenKeepOn(keepOn);
+  toast(keepOn ? '屏幕常亮已开启' : '屏幕常亮已关闭');
+};
+
+/* ==================================================================
+ * 轨迹与地图
+ * ================================================================== */
+var wgsTrack = [];        // 原始 WGS-84 轨迹 [{lat,lon}]
+var gcjTrack = [];        // 高德 GCJ-02 轨迹（在线时换算后绘制）
+var pendingWgs = [];      // 待换算的点
+var dest = null;          // {name, lat, lon}（GCJ-02，来自高德搜索）
+var routeInfo = null;     // {distance(m), time(s)} 在线路线规划结果
+var amapReady = false, amapMode = false, amap = null, markerCur = null;
+var riding = null;
+
+function pushTrackPoint(lat, lon) {
+  var n = wgsTrack.length;
+  if (n > 0) {
+    var p = wgsTrack[n - 1];
+    var dx = (lon - p.lon) * Math.cos(lat * Math.PI / 180) * 111320;
+    var dy = (lat - p.lat) * 110540;
+    if (dx * dx + dy * dy < 4) return; // 移动小于2米不加点
+  }
+  wgsTrack.push({ lat: lat, lon: lon });
+  pendingWgs.push({ lat: lat, lon: lon });
+  if (wgsTrack.length > 4000) wgsTrack = wgsTrack.filter(function (_, i) { return i % 2 === 0; });
+  if (amapMode && pendingWgs.length >= 3) convertPending();
+}
+
+/* 批量把 WGS-84 换算成 GCJ-02（高德坐标） */
+function convertPending() {
+  if (!amapReady || pendingWgs.length === 0) return;
+  var list = pendingWgs.splice(0, pendingWgs.length);
+  var pts = [];
+  for (var i = 0; i < list.length; i++) pts.push([list[i].lon, list[i].lat]);
+  try {
+    AMap.convertFrom(pts, 'gps', function (status, result) {
+      if (status !== 'complete' || !result.info || result.info !== 'ok') return;
+      var g = result.locations;
+      for (var i = 0; i < g.length; i++) {
+        gcjTrack.push([g[i].lng, g[i].lat]);
+      }
+      redrawAmapLine();
+    });
+  } catch (e) {}
+}
+
+function haversine(lat1, lon1, lat2, lon2) {
+  var R = 6371000, r = Math.PI / 180;
+  var a = Math.sin((lat2 - lat1) * r / 2), b = Math.sin((lon2 - lon1) * r / 2);
+  var h = a * a + Math.cos(lat1 * r) * Math.cos(lat2 * r) * b * b;
+  return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)));
+}
+
+/* ---------------- 导航信息（离线退化：直线距离/预计时间） ---------------- */
+function updateOfflineNav() {
+  var remainEl = $('navRemain'), etaEl = $('navEta');
+  if (!dest) { remainEl.textContent = ''; etaEl.textContent = ''; return; }
+  if (routeInfo && amapMode) {
+    remainEl.textContent = '剩余 ' + (routeInfo.distance / 1000).toFixed(1) + 'km';
+    var m = Math.round(routeInfo.time / 60);
+    etaEl.textContent = '预计 ' + (m >= 1 ? m + '分钟' : '<1分钟');
+    return;
+  }
+  if (last.lat === null || dest.gps === null) { remainEl.textContent = '剩余 --'; etaEl.textContent = ''; return; }
+  var d = haversine(last.lat, last.lon, dest.gps.lat, dest.gps.lon);
+  remainEl.textContent = '直线 ' + (d / 1000).toFixed(1) + 'km';
+  if (last.speed >= 4) {
+    var m2 = Math.round(d / 1000 / last.speed * 60);
+    etaEl.textContent = '预计 ' + (m2 >= 1 ? m2 + '分钟' : '<1分钟');
+  } else {
+    etaEl.textContent = '预计 --';
+  }
+}
+
+/* ---------------- 离线自绘轨迹图 ---------------- */
+function drawCanvas() {
+  var wrap = $('mapWrap');
+  var cv = $('cv');
+  var w = wrap.clientWidth, h = wrap.clientHeight;
+  if (w <= 0 || h <= 0) return;
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  var ctx = cv.getContext('2d');
+  ctx.clearRect(0, 0, w, h);
+  if (amapMode) { cv.style.display = 'none'; return; }
+  cv.style.display = 'block';
+
+  /* 计算视野：轨迹 + 当前点 + 目的地 */
+  var pts = wgsTrack.slice();
+  if (last.lat !== null) pts.push({ lat: last.lat, lon: last.lon });
+  if (dest && dest.gps) pts.push({ lat: dest.gps.lat, lon: dest.gps.lon });
+  if (pts.length === 0) {
+    ctx.fillStyle = '#3a5a96';
+    ctx.font = '14px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('等待 GPS 定位…', w / 2, h / 2);
+    return;
+  }
+  var minLat = 1e9, maxLat = -1e9, minLon = 1e9, maxLon = -1e9, i, p;
+  for (i = 0; i < pts.length; i++) {
+    p = pts[i];
+    if (p.lat < minLat) minLat = p.lat;
+    if (p.lat > maxLat) maxLat = p.lat;
+    if (p.lon < minLon) minLon = p.lon;
+    if (p.lon > maxLon) maxLon = p.lon;
+  }
+  var midLat = (minLat + maxLat) / 2;
+  function px(o) { return (o.lon - minLon) * Math.cos(midLat * Math.PI / 180) * 111320; }
+  function py(o) { return (maxLat - o.lat) * 110540; }
+  var spanX = Math.max(px({ lon: maxLon }) - px({ lon: minLon }), 1);
+  var spanY = Math.max(py({ lat: minLat }) - py({ lat: maxLat }), 1);
+  var pad = 40;
+  var k = Math.min((w - pad * 2) / spanX, (h - pad * 2) / spanY);
+  k = Math.min(k, 40); /* 防止单点时无限放大 */
+  var ox = (w - spanX * k) / 2 - px({ lon: minLon }) * k;
+  var oy = (h - spanY * k) / 2 - py({ lat: maxLat }) * k;
+  function X(o) { return ox + px(o) * k; }
+  function Y(o) { return oy + py(o) * k; }
+
+  /* 轨迹线 */
+  if (wgsTrack.length > 1) {
+    ctx.strokeStyle = '#2ecc71';
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(X(wgsTrack[0]), Y(wgsTrack[0]));
+    for (i = 1; i < wgsTrack.length; i++) ctx.lineTo(X(wgsTrack[i]), Y(wgsTrack[i]));
+    ctx.stroke();
+    /* 起点 */
+    ctx.fillStyle = '#2ecc71';
+    ctx.beginPath();
+    ctx.arc(X(wgsTrack[0]), Y(wgsTrack[0]), 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* 目的地（虚线方向） */
+  if (dest && dest.gps && last.lat !== null) {
+    ctx.strokeStyle = '#f5a623';
+    ctx.setLineDash([6, 6]);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(X({ lat: last.lat, lon: last.lon }), Y({ lat: last.lat, lon: last.lon }));
+    ctx.lineTo(X(dest.gps), Y(dest.gps));
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#f5a623';
+    ctx.beginPath();
+    ctx.arc(X(dest.gps), Y(dest.gps), 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /* 当前位置行进箭头 */
+  if (last.lat !== null) {
+    var cx = X({ lat: last.lat, lon: last.lon }), cy = Y({ lat: last.lat, lon: last.lon });
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate((last.bearing || 0) * Math.PI / 180);
+    ctx.fillStyle = '#4da3ff';
+    ctx.beginPath();
+    ctx.moveTo(0, -9);
+    ctx.lineTo(6, 7);
+    ctx.lineTo(0, 4);
+    ctx.lineTo(-6, 7);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /* 比例尺（左下） */
+  var mpp = 111320 * Math.cos(midLat * Math.PI / 180) / k; /* 每像素米数 */
+  var target = 100, best = target;
+  var cands = [50, 100, 200, 500, 1000, 2000];
+  for (i = 0; i < cands.length; i++) { if (Math.abs(cands[i] / mpp - 60) < Math.abs(best / mpp - 60)) best = cands[i]; }
+  var barPx = best / mpp;
+  ctx.strokeStyle = '#cfe0ff';
+  ctx.fillStyle = '#cfe0ff';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(12, h - 14);
+  ctx.lineTo(12 + barPx, h - 14);
+  ctx.stroke();
+  ctx.font = '10px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(best >= 1000 ? (best / 1000) + 'km' : best + 'm', 12, h - 20);
+
+  /* 指北针（右上） */
+  var nx = w - 24, ny = 40;
+  ctx.strokeStyle = '#cfe0ff';
+  ctx.beginPath();
+  ctx.arc(nx, ny, 12, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#ff6b6b';
+  ctx.beginPath();
+  ctx.moveTo(nx, ny - 10);
+  ctx.lineTo(nx + 4, ny + 4);
+  ctx.lineTo(nx, ny + 1);
+  ctx.lineTo(nx - 4, ny + 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#cfe0ff';
+  ctx.textAlign = 'center';
+  ctx.fillText('N', nx, ny + 22);
+}
+
+/* ---------------- 高德 JS 地图 ---------------- */
+function loadAmap() {
+  if (AMAP_KEY === 'YOUR_AMAP_KEY' || amapReady || amapLoading) return;
+  amapLoading = true;
+  if (AMAP_SECURITY) {
+    window._AMapSecurityConfig = { securityJsCode: AMAP_SECURITY };
+  }
+  var s = document.createElement('script');
+  s.src = 'https://webapi.amap.com/maps?v=1.4.15&key=' + AMAP_KEY;
+  s.onload = function () {
+    amapLoading = false;
+    try {
+      amap = new AMap.Map('amapDiv', { zoom: 16, resizeEnable: true });
+      amap.addControl(new AMap.Scale());
+      markerCur = new AMap.Marker({
+        content: '<div style="width:14px;height:14px;border-radius:50%;background:#4da3ff;border:2px solid #fff;"></div>',
+        offset: new AMap.Pixel(-7, -7)
+      });
+      amap.add(markerCur);
+      AMap.plugin(['AMap.PlaceSearch', 'AMap.Riding'], function () {
+        riding = new AMap.Riding({ policy: 0, hideMarkers: true });
+      });
+      amapReady = true;
+      $('btnSwitchMap').textContent = '轨迹图';
+      redrawAmapLine();
+      toast('高德地图已加载');
+    } catch (e) {
+      amapReady = false;
+      toast('高德地图初始化失败，使用轨迹图');
+    }
+  };
+  s.onerror = function () {
+    amapLoading = false;
+    toast('地图加载失败（无网络或未配置Key），使用轨迹图');
+  };
+  document.head.appendChild(s);
+}
+
+var amapLoading = false;
+var amapLine = null, routeLines = [];
+
+function redrawAmapLine() {
+  if (!amapReady) return;
+  if (amapLine) { amap.remove(amapLine); amapLine = null; }
+  if (gcjTrack.length > 1) {
+    amapLine = new AMap.Polyline({
+      path: gcjTrack, strokeColor: '#2ecc71', strokeWeight: 5, strokeOpacity: 0.9
+    });
+    amap.add(amapLine);
+  }
+}
+
+function mapFollow() {
+  if (!amapMode || !amapReady || last.lat === null) return;
+  if (pendingWgs.length === 1) convertPending();
+  if (gcjTrack.length > 0) {
+    var lastG = gcjTrack[gcjTrack.length - 1];
+    amap.setCenter(lastG);
+    if (markerCur) markerCur.setPosition(lastG);
+  }
+}
+
+function setAmapMode(on) {
+  if (on && !amapReady) {
+    loadAmap();
+    if (!amapReady) { toast('高德地图未就绪，仍使用轨迹图'); return; }
+  }
+  amapMode = on;
+  $('amapDiv').style.display = on ? 'block' : 'none';
+  $('offlineTip').style.display = on ? 'none' : 'block';
+  $('btnSwitchMap').textContent = on ? '轨迹图' : '高德地图';
+  if (on) { setTimeout(function () { if (amap) amap.resize(); mapFollow(); redrawAmapLine(); }, 100); }
+  else drawCanvas();
+}
+$('btnSwitchMap').onclick = function () { setAmapMode(!amapMode); };
+
+/* ---------------- 目的地弹窗（关键字搜索） ---------------- */
+function openDest() {
+  $('maskDest').style.display = 'block';
+  $('dlgDest').style.display = 'block';
+}
+function closeDest() {
+  $('maskDest').style.display = 'none';
+  $('dlgDest').style.display = 'none';
+}
+$('btnDest').onclick = openDest;
+$('maskDest').onclick = closeDest;
+$('btnCloseDest').onclick = closeDest;
+
+$('btnSearch').onclick = doSearch;
+$('destInput').addEventListener('keydown', function (e) { if (e.keyCode === 13) doSearch(); });
+
+function doSearch() {
+  var kw = $('destInput').value.trim();
+  if (!kw) { toast('请输入目的地关键字'); return; }
+  if (!amapReady) {
+    loadAmap();
+    toast('地图未就绪（无网络或未配置Key），无法搜索');
+    return;
+  }
+  var ps = new AMap.PlaceSearch({ city: '全国', pageSize: 8 });
+  ps.search(kw, function (status, result) {
+    var box = $('destList');
+    if (status !== 'complete' || !result.poiList || !result.poiList.pois.length) {
+      box.innerHTML = '<div class="empty">未找到相关地点</div>';
+      return;
+    }
+    var html = '';
+    var pois = result.poiList.pois;
+    for (var i = 0; i < pois.length; i++) {
+      var p = pois[i];
+      var addr = (p.pname || '') + (p.cityname || '') + (p.address || '');
+      html += '<div class="item" onclick="pickDest(' + p.location.getLng() + ',' +
+              p.location.getLat() + ',\'' + String(p.name).replace(/'/g, '') + '\')">' +
+              p.name + '<div class="sub">' + addr + '</div></div>';
+    }
+    box.innerHTML = html;
+  });
+}
+
+function pickDest(lng, lat, name) {
+  dest = { name: name, lat: lat, lon: lng, gps: { lat: lat, lon: lng } };
+  $('navDest').textContent = '目的地：' + name;
+  routeInfo = null;
+  closeDest();
+  toast('目的地已设置：' + name);
+  planRoute();
+  updateOfflineNav();
+  drawCanvas();
+}
+
+/* 在线骑行路线规划（AMap.Riding，橙色路线） */
+function planRoute() {
+  if (!amapReady || !riding || !dest || last.lat === null || gcjTrack.length === 0) return;
+  var origin = gcjTrack[gcjTrack.length - 1];
+  riding.search(origin, [dest.lon, dest.lat], function (status, result) {
+    if (status !== 'complete' || !result.routes || !result.routes.length) {
+      routeInfo = null;
+      toast('路线规划失败，按直线距离显示');
+      return;
+    }
+    var r = result.routes[0];
+    routeInfo = { distance: r.distance, time: r.time };
+    for (var i = 0; i < routeLines.length; i++) amap.remove(routeLines[i]);
+    routeLines = [];
+    var steps = r.steps || [];
+    for (var j = 0; j < steps.length; j++) {
+      var path = steps[j].path;
+      if (!path || path.length < 2) continue;
+      var line = new AMap.Polyline({
+        path: path, strokeColor: '#f5a623', strokeWeight: 6, strokeOpacity: 0.9,
+        showDir: true
+      });
+      amap.add(line);
+      routeLines.push(line);
+    }
+    amap.setFitView(routeLines);
+    updateOfflineNav();
+  });
+}
+
+/* 高德 APP 骑行导航兜底 */
+$('btnAmapApp').onclick = function () {
+  if (!bridge()) return;
+  if (dest) {
+    bridge().openNavigation(String(dest.lat), String(dest.lon), dest.name);
+  } else {
+    bridge().openNavigation('', '', '');
+  }
+};
+
+/* ---------------- 初始化 ---------------- */
+fitScreen();
+applyBle('disconnected');
+applyGps('no_fix');
+loadAmap();
+if (bridge()) bridge().startRecord();
+</script>
+</body>
+</html>

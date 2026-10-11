@@ -1,0 +1,19 @@
+# 构建产物与工具链（体积大，可重新生成；不入库）
+.toolchain/
+.gradle/
+build/
+app/build/
+local.properties
+*.apk
+*.zip
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# 系统与临时文件
+__MACOSX/
+.DS_Store
+Thumbs.db
+*.log

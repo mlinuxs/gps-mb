@@ -1,0 +1,24 @@
+// 顶层构建脚本：骑行数据采集APP
+// Gradle 5.6.4 + Android Gradle Plugin 3.6.4 + JDK8
+buildscript {
+    repositories {
+        google()
+        mavenCentral()
+        jcenter()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:3.6.4'
+    }
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+        jcenter()
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

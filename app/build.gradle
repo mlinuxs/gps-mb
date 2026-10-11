@@ -1,0 +1,43 @@
+// app 模块构建脚本
+// 目标：minSdk 21（兼容 Android 5.0 手机）/ targetSdk 23
+// targetSdk 需 >= 23 才不会在 Android 9+ 弹出「此应用专为旧版 Android 打造」提示；
+// 同时保持 < 28 以继续沿用安装时权限与旧版前台服务行为，避免额外适配。
+apply plugin: 'com.android.application'
+
+android {
+    compileSdkVersion 21
+    // AGP 3.6.4 默认使用 build-tools 28.0.3，缺失时 Gradle 会自动下载
+
+    defaultConfig {
+        applicationId "com.ridelog.app"
+        minSdkVersion 21
+        targetSdkVersion 23
+        versionCode 1
+        versionName "1.0"
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        debug {
+            minifyEnabled false
+        }
+    }
+
+    // 离线工程不跑严格 lint，避免第三方环境差异阻断打包
+    lintOptions {
+        abortOnError false
+        checkReleaseBuilds false
+    }
+}
+
+dependencies {
+    // 无第三方依赖：BLE/GPS/WebView/CSV 全部使用 Android 系统 API
+}
