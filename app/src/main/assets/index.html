@@ -130,6 +130,7 @@ html,body { width:100%; height:100%; overflow:hidden; background:#0b1526;
     <button id="btnStop" class="danger">停止</button>
     <button id="btnDest">目的地</button>
     <button id="btnBle">蓝牙</button>
+    <button id="btnPan">网盘</button>
     <button id="btnKeep" class="warn">常亮</button>
   </div>
 </div>
@@ -160,10 +161,10 @@ html,body { width:100%; height:100%; overflow:hidden; background:#0b1526;
 <script>
 /* ==================================================================
  * 骑行数据采集 H5（手机版，纯 ES5）
- * Java->H5：onDataUpdate / onStatusUpdate / onBleDevices
+ * Java->H5：onDataUpdate / onStatusUpdate / onBleDevices / onUploadUpdate
  * H5->Java：startRecord stopRecord pauseRecord resumeRecord
  *           setScreenKeepOn startBleScan stopBleScan connectBle
- *           disconnectBle openNavigation
+ *           disconnectBle openNavigation bindBaiduPan
  * ================================================================== */
 
 /* ---------------- 高德 Key 配置：发布前替换为你的 Web端(JS) Key ----------------
@@ -224,6 +225,27 @@ function onStatusUpdate(json) {
     applyGps(lastState.gps);
     if (o.message) toast(o.message);
   } catch (e) {}
+}
+
+/* ---------------- 百度网盘上传 ---------------- */
+var panBound = false;
+function applyPan() {
+  var b = $('btnPan');
+  if (!panBound) { b.textContent = '网盘'; b.style.color = ''; return; }
+  b.textContent = '网盘✓';
+  b.style.color = '#7fd08a';
+}
+function onUploadUpdate(json) {
+  try {
+    var o = JSON.parse(json);
+    if (typeof o.bound === 'boolean') { panBound = o.bound; applyPan(); }
+    if (o.message) toast(o.message);
+  } catch (e) {}
+}
+function openPan() {
+  if (!bridge()) { toast('桥接未就绪'); return; }
+  if (!panBound) { toast('请在弹出页面登录百度账号并授权'); }
+  bridge().bindBaiduPan();
 }
 
 /* ---------------- 数据显示 ---------------- */
@@ -356,6 +378,7 @@ $('btnKeep').onclick = function () {
   if (bridge()) bridge().setScreenKeepOn(keepOn);
   toast(keepOn ? '屏幕常亮已开启' : '屏幕常亮已关闭');
 };
+$('btnPan').onclick = openPan;
 
 /* ==================================================================
  * 轨迹与地图

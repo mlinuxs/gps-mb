@@ -17,6 +17,7 @@ import com.ridelog.app.ble.BleManager;
 import com.ridelog.app.ble.BmsData;
 import com.ridelog.app.gps.GpsData;
 import com.ridelog.app.gps.GpsManager;
+import com.ridelog.app.pan.BaiduPanManager;
 import com.ridelog.app.storage.CsvLogger;
 
 import org.json.JSONArray;
@@ -29,11 +30,11 @@ import java.util.Locale;
  * 骑行采集前台服务（对抗 vivo 后台查杀的核心）。
  *
  * - startRecord：启动前台通知（标题“骑行记录中”）+ PARTIAL_WAKE_LOCK + GPS + CSV，1Hz 汇总推送
- * - stopRecord：停止全部采集、关闭 CSV、移除通知、释放锁、断开蓝牙
+ * - stopRecord：停止全部采集、关闭 CSV、移除通知、释放锁、断开蓝牙，并把 CSV 加入网盘上传队列
  * - BLE 扫描/连接可独立于记录状态操作
  * - 所有数据/状态经 UiCallback 推给 WebView；异常全部捕获
  */
-public class RideService extends Service implements BleManager.Listener, GpsManager.Listener {
+public class RideService extends Service implements BleManager.Listener, GpsManager.Listener, BaiduPanManager.Listener {
 
     private static final String TAG = "RideService";
     private static final int NOTIF_ID = 1001;
@@ -45,6 +46,7 @@ public class RideService extends Service implements BleManager.Listener, GpsMana
         void onDataUpdate(String json);
         void onStatusUpdate(String json);
         void onBleDevices(String json);
+        void onUploadUpdate(String message);
     }
 
     private final IBinder binder = new LocalBinder();
@@ -58,8 +60,10 @@ public class RideService extends Service implements BleManager.Listener, GpsMana
     private BleManager ble;
     private GpsManager gps;
     private CsvLogger csv;
+    private BaiduPanManager baiduPan;
     private Handler main;
     private PowerManager.WakeLock wakeLock;
+    private android.net.ConnectivityManager.NetworkCallback netCallback;
 
     private boolean recording = false;
     private boolean paused = false;       // 手动暂停记录（GPS 保持，不计时不写CSV）
@@ -88,6 +92,35 @@ public class RideService extends Service implements BleManager.Listener, GpsMana
             startRecord();
         } catch (Exception e) {
             Log.e(TAG, "auto start record fail", e);
+        }
+        // 网盘上传：启动后延迟几秒尝试续传遗留队列（等网络/授权就绪）
+        baiduPan = new BaiduPanManager(this);
+        baiduPan.setListener(this);
+        registerNetworkCallback();
+        main.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                baiduPan.uploadPendingNow();
+            }
+        }, 5000);
+    }
+
+    /** 网络恢复回调：断网期间积压的 CSV 在此自动续传。 */
+    private void registerNetworkCallback() {
+        try {
+            android.net.ConnectivityManager cm =
+                    (android.net.ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm == null) { return; }
+            netCallback = new android.net.ConnectivityManager.NetworkCallback() {
+                @Override
+                public void onAvailable(android.net.Network network) {
+                    baiduPan.uploadPendingNow();
+                }
+            };
+            cm.registerNetworkCallback(
+                    new android.net.NetworkRequest.Builder().build(), netCallback);
+        } catch (Exception e) {
+            Log.w(TAG, "register network callback fail", e);
         }
     }
 
@@ -165,6 +198,10 @@ public class RideService extends Service implements BleManager.Listener, GpsMana
         pushStatus(f != null
                 ? "记录已停止，CSV 已保存到 Download 目录：" + f.getName()
                 : "记录已停止");
+        // 停止后自动上传本次 CSV 到百度网盘（无网络时留在队列，恢复后自动续传）
+        if (f != null && f.exists() && f.length() > 0 && baiduPan != null) {
+            baiduPan.queueUpload(f);
+        }
         if (ui == null) {
             stopSelf(); // 界面已不在且非前台，自动销毁
         }
@@ -202,6 +239,33 @@ public class RideService extends Service implements BleManager.Listener, GpsMana
     /** 当前 GPS 快照（供导航取起点坐标）。 */
     public GpsData getCurrentGps() {
         return gps.snapshot();
+    }
+
+    // ------------------------------------------------------------ 百度网盘代理
+
+    /** 网盘是否已配置 AppKey 且完成授权。 */
+    public boolean isBaiduBound() {
+        return baiduPan != null && BaiduPanManager.isConfigured() && baiduPan.hasToken();
+    }
+
+    /** 网盘 AppKey 是否已配置（未配置时 H5 提示去平台注册）。 */
+    public boolean isBaiduConfigured() {
+        return BaiduPanManager.isConfigured();
+    }
+
+    /** 待上传文件数。 */
+    public int baiduPendingCount() {
+        return baiduPan != null ? baiduPan.pendingCount() : 0;
+    }
+
+    /** 授权页拿到的 code 换 token（后台线程）。 */
+    public void exchangeBaiduCode(String code) {
+        if (baiduPan != null) { baiduPan.exchangeCode(code); }
+    }
+
+    /** 立即尝试上传待传清单。 */
+    public void uploadBaiduPendingNow() {
+        if (baiduPan != null) { baiduPan.uploadPendingNow(); }
     }
 
     // ------------------------------------------------------------ 1Hz 主循环
@@ -393,11 +457,34 @@ public class RideService extends Service implements BleManager.Listener, GpsMana
         pushStatus(message);
     }
 
+    // ------------------------------------------------------------ 网盘回调
+
+    @Override
+    public void onUploadState(String message) {
+        if (ui == null) return;
+        try {
+            JSONObject o = new JSONObject();
+            o.put("message", message == null ? "" : message);
+            o.put("bound", isBaiduBound());
+            o.put("pending", baiduPendingCount());
+            ui.onUploadUpdate(o.toString());
+        } catch (Exception ignored) {
+        }
+    }
+
     // ------------------------------------------------------------ 销毁
 
     @Override
     public void onDestroy() {
         main.removeCallbacks(tick);
+        try {
+            android.net.ConnectivityManager cm =
+                    (android.net.ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+            if (cm != null && netCallback != null) {
+                cm.unregisterNetworkCallback(netCallback);
+            }
+        } catch (Exception ignored) {
+        }
         try {
             gps.stop();
         } catch (Exception ignored) {

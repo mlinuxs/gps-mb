@@ -1,6 +1,7 @@
 package com.ridelog.app;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -45,6 +46,11 @@ public class MainActivity extends Activity {
         @Override
         public void onBleDevices(String json) {
             callJs("onBleDevices", json);
+        }
+
+        @Override
+        public void onUploadUpdate(String message) {
+            callJs("onUploadUpdate", message);
         }
     };
 
@@ -239,6 +245,60 @@ public class MainActivity extends Activity {
                 Toast.makeText(this, "无法打开导航，请安装高德地图", Toast.LENGTH_SHORT).show();
             }
         }
+    }
+
+    // ------------------------------------------------------------ 百度网盘
+
+    /**
+     * H5 点【网盘】：未配置 AppKey 提示；已绑定则立即续传；否则弹出授权 WebView。
+     */
+    public void onBindBaiduPan() {
+        if (service == null) { return; }
+        if (!service.isBaiduConfigured()) {
+            Toast.makeText(this,
+                    "请先在 pan.baidu.com/union 创建应用，把 AppKey/SecretKey 填入 BaiduPanManager",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        if (service.isBaiduBound()) {
+            Toast.makeText(this,
+                    "网盘已绑定，待传 " + service.baiduPendingCount() + " 个，正在上传…",
+                    Toast.LENGTH_SHORT).show();
+            service.uploadBaiduPendingNow();
+            return;
+        }
+        showBaiduAuthDialog();
+    }
+
+    /** 全屏 WebView 打开百度授权页；登录授权后自动拦截回调码，无需手动复制。 */
+    private void showBaiduAuthDialog() {
+        final String url = com.ridelog.app.pan.BaiduPanManager.buildAuthUrl();
+        if (url == null) { return; }
+        final Dialog dlg = new Dialog(this, android.R.style.Theme_Black_NoTitleBar_Fullscreen);
+        WebView wv = new WebView(this);
+        wv.getSettings().setJavaScriptEnabled(true);
+        wv.setWebViewClient(new WebViewClient() {
+            @Override
+            public boolean shouldOverrideUrlLoading(WebView view, String u) {
+                if (u != null && u.contains("/oauth/2.0/oob")) {
+                    try {
+                        android.net.Uri cu = android.net.Uri.parse(u);
+                        String code = cu.getQueryParameter("code");
+                        dlg.dismiss();
+                        if (code != null && code.trim().length() > 0) {
+                            Toast.makeText(MainActivity.this, "正在绑定网盘…", Toast.LENGTH_SHORT).show();
+                            service.exchangeBaiduCode(code.trim());
+                        }
+                    } catch (Exception ignored) {
+                    }
+                    return true; // 阻止 WebView 实际加载 oob 回调页
+                }
+                return false;
+            }
+        });
+        wv.loadUrl(url);
+        dlg.setContentView(wv);
+        dlg.show();
     }
 
     // ------------------------------------------------------------ Java -> H5

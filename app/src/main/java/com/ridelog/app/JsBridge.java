@@ -143,4 +143,18 @@ public class JsBridge {
             }
         });
     }
+
+    /**
+     * 百度网盘：未绑定 -> 弹授权页（自动换 token）；已绑定 -> 立即续传待传清单。
+     */
+    @JavascriptInterface
+    public void bindBaiduPan() {
+        main.post(new Runnable() {
+            @Override
+            public void run() {
+                MainActivity a = actRef.get();
+                if (a != null) a.onBindBaiduPan();
+            }
+        });
+    }
 }

@@ -25,7 +25,8 @@
 | 屏幕常亮 | H5 开关控制 `FLAG_KEEP_SCREEN_ON`，骑行模式屏幕不熄 |
 | CSV 记录 | 1 秒 1 行（**停车/未定位时段自动降频为 30 秒 1 条**，末列标注「骑行/静止」状态；暂停记录时不写入），UTF-8（带 BOM，Excel 直接打开），保存到 `Download/RideLog_yyyyMMdd_HHmmss.csv`，每条 flush |
 | 暂停记录 | 小按钮【暂停】：GPS 保持定位，暂停计时/里程/CSV 写入（暂停期间漂移不计入）；【继续】无缝接续 |
-| JS Bridge | H5→Java：`startRecord / stopRecord / pauseRecord / resumeRecord / setScreenKeepOn / startBleScan / stopBleScan / connectBle / disconnectBle / openNavigation`；Java→H5：`onDataUpdate / onStatusUpdate / onBleDevices`，1Hz 节流推送 |
+| 网盘备份 | **点【停止】后 CSV 自动上传百度网盘**（OpenAPI，远端目录「我的应用数据/rideLog/」）：点【网盘】首次弹出授权页登录百度账号（授权码自动换取，无需手动复制）；**无网络时留在待传队列，网络恢复自动续传**（NetworkCallback）；上传成功记录本地已传清单，**重启不重复上传**；access_token 30 天有效，过期自动用 refresh_token 续期。凭证在 `BaiduPanManager.java` 顶部 `APP_KEY/SECRET_KEY` |
+| JS Bridge | H5→Java：`startRecord / stopRecord / pauseRecord / resumeRecord / setScreenKeepOn / startBleScan / stopBleScan / connectBle / disconnectBle / openNavigation / bindBaiduPan`；Java→H5：`onDataUpdate / onStatusUpdate / onBleDevices / onUploadUpdate`，1Hz 节流推送 |
 
 ---
 
